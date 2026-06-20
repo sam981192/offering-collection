@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offering Collection Management System</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <div class="header-icon">🪔</div>
+        <div>
+          <h1 class="header-title">Offering Collection Management System</h1>
+          <p class="header-sub">Paste your raw data below and generate the final management report automatically.</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Input Section -->
+      <section class="section">
+        <h2 class="section-title">Data Input</h2>
+        <div class="inputs-grid">
+          <div class="input-block">
+            <label class="input-label">
+              <span class="label-dot dot-orange"></span>
+              Offering Collection Data
+            </label>
+            <textarea id="input1" class="textarea" placeholder="Paste Offering Collection Data Here...
+
+Example:
+City
+Punjabi Bagh
+East of Kailash
+East of Kailash
+Aya Nagar
+Dwarka
+Gurugram"></textarea>
+            <div class="input-meta" id="meta1">—</div>
+          </div>
+          <div class="input-block">
+            <label class="input-label">
+              <span class="label-dot dot-blue"></span>
+              Website Offering Data
+            </label>
+            <textarea id="input2" class="textarea" placeholder="Paste Website Offering Data Here...
+
+Example:
+Temple / Mandir
+ISKCON Punjabi Bagh
+ISKCON East of Kailash
+ISKCON Rohini
+ISKCON Dwaraka"></textarea>
+            <div class="input-meta" id="meta2">—</div>
+          </div>
+          <div class="input-block">
+            <label class="input-label">
+              <span class="label-dot dot-green"></span>
+              Out of India Offerings
+            </label>
+            <textarea id="input3" class="textarea" placeholder="Paste Out of India Offerings Here...
+
+Example:
+Devasadan Mandir
+ISKCON Atlanta
+ISKCON Detroit"></textarea>
+            <div class="input-meta" id="meta3">—</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="calculateReport()">
+            <span>⚡</span> Calculate Report
+          </button>
+          <button class="btn btn-ghost" onclick="clearAll()">
+            <span>🗑</span> Clear All
+          </button>
+          <button class="btn btn-outline" onclick="copyFinalReport()" id="btn-copy-report" disabled>
+            <span>📋</span> Copy Final Report
+          </button>
+          <button class="btn btn-outline" onclick="copyFullBreakdown()" id="btn-copy-breakdown" disabled>
+            <span>📄</span> Copy Breakdown
+          </button>
+          <button class="btn btn-outline" onclick="downloadExcel()" id="btn-excel" disabled>
+            <span>📊</span> Download Excel
+          </button>
+          <button class="btn btn-outline" onclick="downloadPDF()" id="btn-pdf" disabled>
+            <span>📑</span> Download PDF
+          </button>
+        </div>
+      </section>
+
+      <!-- Results (hidden until calculated) -->
+      <div id="results" class="results-area hidden">
+
+        <!-- Dashboard Cards -->
+        <section class="section">
+          <h2 class="section-title">Dashboard Summary</h2>
+          <div class="cards-grid" id="cards-grid"></div>
+        </section>
+
+        <!-- Final Report -->
+        <section class="section">
+          <h2 class="section-title">Final Report</h2>
+          <div class="report-box">
+            <div class="report-header">
+              <span>Category-wise Offering Summary</span>
+              <button class="icon-btn" onclick="copyFinalReport()" title="Copy">📋</button>
+            </div>
+            <div id="final-report" class="report-content"></div>
+          </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="section">
+          <h2 class="section-title">Charts</h2>
+          <div class="charts-grid">
+            <div class="chart-box">
+              <div class="chart-title">Category-wise Bar Chart</div>
+              <canvas id="barChart"></canvas>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Category Distribution (Pie)</div>
+              <canvas id="pieChart"></canvas>
+            </div>
+            <div class="chart-box chart-wide">
+              <div class="chart-title">Outside Delhi — Location Breakdown</div>
+              <canvas id="outsideChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Breakdown -->
+        <section class="section">
+          <h2 class="section-title">Full Breakdown</h2>
+          <div class="report-box">
+            <div class="report-header">
+              <span>Detailed Location Breakdown</span>
+              <button class="icon-btn" onclick="copyFullBreakdown()" title="Copy">📋</button>
+            </div>
+            <div id="full-breakdown" class="report-content"></div>
+          </div>
+        </section>
+
+        <!-- Unknown Locations -->
+        <section class="section" id="unknown-section" style="display:none;">
+          <h2 class="section-title">⚠️ Admin Review — Unknown Locations</h2>
+          <div class="report-box warn-box">
+            <div class="report-header">
+              <span>These locations were auto-assigned to Outside Delhi</span>
+            </div>
+            <div id="unknown-list" class="report-content"></div>
+          </div>
+        </section>
+
+      </div><!-- /results -->
+
+      <!-- Toast -->
+      <div id="toast" class="toast hidden"></div>
+    </main>
+
+    <footer class="footer">
+      Offering Collection Management System &bull; GitHub Pages Compatible &bull; All data processed locally in your browser
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
