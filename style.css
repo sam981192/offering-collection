@@ -485,3 +485,45 @@ body {
   .btn-row      { gap: 7px; }
   .btn          { padding: 8px 12px; font-size: 0.78rem; }
 }
+
+/* ─── ADMIN REVIEW TABLE ─────────────────────────── */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-top: 4px;
+  overflow-x: auto;
+  display: block;
+}
+.admin-table th {
+  background: rgba(217,79,126,0.15);
+  color: var(--lotus);
+  font-weight: 700;
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(217,79,126,0.25);
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: top;
+}
+.admin-table tr:hover td { background: var(--surface2); }
+.badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge-fuzzy   { background: rgba(244,134,10,0.15); color: var(--saffron); border: 1px solid rgba(244,134,10,0.3); }
+.badge-outside { background: rgba(76,168,245,0.12); color: var(--sky);     border: 1px solid rgba(76,168,245,0.25); }
+.badge-alias   { background: rgba(62,207,178,0.12); color: var(--teal);    border: 1px solid rgba(62,207,178,0.25); }
+.badge-contains{ background: rgba(167,139,250,0.12); color: var(--violet); border: 1px solid rgba(167,139,250,0.25); }
