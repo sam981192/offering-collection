@@ -20,7 +20,7 @@
       <div>
         <div class="header-badge">Dashboard</div>
         <h1 class="header-title">Offering Collection Management</h1>
-        <p class="header-sub">Paste raw data below — the system categorises, counts, and generates a full report automatically.</p>
+        <p class="header-sub">Paste raw data — the system cleans, normalises, counts, and generates a full report automatically.</p>
       </div>
     </div>
   </header>
@@ -142,7 +142,7 @@ ISKCON Detroit"></textarea>
             <canvas id="pieChart"></canvas>
           </div>
           <div class="chart-box chart-wide">
-            <div class="chart-title">Outside Delhi — Location Breakdown</div>
+            <div class="chart-title">Outside Delhi — Top Locations</div>
             <canvas id="outsideChart"></canvas>
           </div>
         </div>
@@ -160,14 +160,14 @@ ISKCON Detroit"></textarea>
         </div>
       </section>
 
-      <!-- Unknown Locations -->
-      <section class="section" id="unknown-section" style="display:none;">
-        <h2 class="section-title">⚠️ Admin Review — Unknown Locations</h2>
+      <!-- Admin Review -->
+      <section class="section" id="admin-section" style="display:none;">
+        <h2 class="section-title">⚠️ Admin Review</h2>
         <div class="report-box warn-box">
           <div class="report-header">
-            <span>Auto-assigned to Outside Delhi — verify if needed</span>
+            <span id="admin-header-text">Items auto-assigned — verify if needed</span>
           </div>
-          <div id="unknown-list" class="report-content"></div>
+          <div id="admin-list" style="overflow-x:auto;padding:12px 14px;"></div>
         </div>
       </section>
 
