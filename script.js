@@ -1,895 +1,576 @@
 /* =============================================
    Offering Collection Management System
-   script.js
+   script.js — v2.0 (no previous-day feature)
    ============================================= */
 
-"use strict";
+'use strict';
 
-// =============================================
-// CONFIGURATION
-// =============================================
+// ─── CATEGORY & LOCATION MAPPING ────────────────────────────────────────────
 
-const IGNORE_LINES = new Set([
-  "city", "temple", "temple / mandir", "temple/mandir",
-  "mandir", "location", "centre", "center", "temple name", ""
-]);
-
-// localStorage key for Previous Day Offering persistence
-const PREV_DAY_STORAGE_KEY = "offeringApp_previousDayOffering";
-
-// Shared label-padding helper (used by report/comparison text formatters)
-function padLabel(s, n) {
-  return s + " ".repeat(Math.max(0, n - s.length));
-}
-
-// Normalization: raw value → canonical name
-const NORMALIZE_MAP = [
-  // East of Kailash group
-  { patterns: ["east of kailash", "iskcon east of kailash"], canonical: "East of Kailash" },
-  // Punjabi Bagh
-  { patterns: ["punjabi bagh", "iskcon punjabi bagh"], canonical: "Punjabi Bagh" },
-  // Rohini
-  { patterns: ["rohini", "iskcon rohini"], canonical: "Rohini" },
-  // Dwarka
-  { patterns: ["dwarka", "dwaraka", "iskcon dwarka", "iskcon dwaraka"], canonical: "Dwarka" },
-  // Gurugram
-  { patterns: ["gurugram", "gurgaon", "iskcon gurugram", "iskcon gurgaon"], canonical: "Gurugram" },
-  // Badshahpur
-  { patterns: ["badshahpur", "iskcon badshahpur"], canonical: "Badshahpur" },
-  // Chhatarpur
-  { patterns: ["chhatarpur", "chattarpur", "chhattarpur", "iskcon chhatarpur"], canonical: "Chhatarpur" },
-  // Chhipiwada
-  { patterns: ["chhipiwada", "chippiwara", "iskcon chippiwara", "iskcon chhipiwada", "chhippiwada"], canonical: "Chhipiwada" },
-  // Hisar
-  { patterns: ["hisar", "hissar"], canonical: "Hisar" },
-  // Mumbai Juhu
-  { patterns: ["mumbai(juhu)", "mumbai (juhu)", "iskcon mumbai(juhu)", "iskcon mumbai (juhu)", "mumbai juhu"], canonical: "Mumbai (Juhu)" },
-  // Aya Nagar
-  { patterns: ["aya nagar", "ayanagar"], canonical: "Aya Nagar" },
-  // Ber Sarai
-  { patterns: ["ber sarai", "bersarai"], canonical: "Ber Sarai" },
-  // Katwaria Sarai
-  { patterns: ["katwaria sarai", "katwariasarai"], canonical: "Katwaria Sarai" },
-  // Lado Sarai
-  { patterns: ["lado sarai", "ladosarai"], canonical: "Lado Sarai" },
-  // Mahipalpur
-  { patterns: ["mahipalpur"], canonical: "Mahipalpur" },
-  // Mehrauli
-  { patterns: ["mehrauli"], canonical: "Mehrauli" },
-  // Sultanpur
-  { patterns: ["sultanpur"], canonical: "Sultanpur" },
-  // Faridabad
-  { patterns: ["faridabad", "iskcon faridabad"], canonical: "Faridabad" },
-  // Ghaziabad
-  { patterns: ["ghaziabad", "iskcon ghaziabad"], canonical: "Ghaziabad" },
-  // Noida
-  { patterns: ["noida", "iskcon noida"], canonical: "Noida" },
+const CATEGORIES = [
+  'East of Kailash',
+  'Punjabi Bagh',
+  'Rohini',
+  'Gurgaon',
+  'Delhi Dwarka',
+  'Faridabad',
+  'Ghaziabad',
+  'Noida',
+  'Chhipiwada',
+  'Outside Delhi',
 ];
 
-// Build lookup table for fast normalizing
-const NORM_LOOKUP = {};
-for (const entry of NORMALIZE_MAP) {
-  for (const p of entry.patterns) {
-    NORM_LOOKUP[p.toLowerCase()] = entry.canonical;
-  }
-}
+// canonical name → category
+const LOCATION_MAP = {
+  // East of Kailash group
+  'east of kailash': 'East of Kailash',
+  'aya nagar':       'East of Kailash',
+  'ber sarai':       'East of Kailash',
+  'chhatarpur':      'East of Kailash',
+  'katwaria sarai':  'East of Kailash',
+  'lado sarai':      'East of Kailash',
+  'mahipalpur':      'East of Kailash',
+  'mehrauli':        'East of Kailash',
+  'sultanpur':       'East of Kailash',
+  'malviya nagar':   'East of Kailash',
+  'sarojini nagar':  'East of Kailash',
 
-// Final category mapping: canonical → category
-const CATEGORY_MAP = {
-  // East of Kailash
-  "East of Kailash":  "East of Kailash",
-  "Aya Nagar":        "East of Kailash",
-  "Ber Sarai":        "East of Kailash",
-  "Chhatarpur":       "East of Kailash",
-  "Katwaria Sarai":   "East of Kailash",
-  "Lado Sarai":       "East of Kailash",
-  "Mahipalpur":       "East of Kailash",
-  "Mehrauli":         "East of Kailash",
-  "Sultanpur":        "East of Kailash",
   // Punjabi Bagh
-  "Punjabi Bagh":     "Punjabi Bagh",
+  'punjabi bagh': 'Punjabi Bagh',
+
   // Rohini
-  "Rohini":           "Rohini",
-  // Delhi Dwarka
-  "Dwarka":           "Delhi Dwarka",
+  'rohini': 'Rohini',
+
   // Gurgaon
-  "Gurugram":         "Gurgaon",
-  "Badshahpur":       "Gurgaon",
+  'gurugram':    'Gurgaon',
+  'gurgaon':     'Gurgaon',
+  'badshahpur':  'Gurgaon',
+
+  // Delhi Dwarka
+  'dwarka':       'Delhi Dwarka',
+  'delhi dwarka': 'Delhi Dwarka',
+
   // Faridabad
-  "Faridabad":        "Faridabad",
+  'faridabad': 'Faridabad',
+
   // Ghaziabad
-  "Ghaziabad":        "Ghaziabad",
+  'ghaziabad': 'Ghaziabad',
+
   // Noida
-  "Noida":            "Noida",
+  'noida': 'Noida',
+
   // Chhipiwada
-  "Chhipiwada":       "Chhipiwada",
+  'chhipiwada': 'Chhipiwada',
 };
 
-const CATEGORY_ORDER = [
-  "East of Kailash",
-  "Punjabi Bagh",
-  "Rohini",
-  "Gurgaon",
-  "Delhi Dwarka",
-  "Faridabad",
-  "Ghaziabad",
-  "Noida",
-  "Chhipiwada",
-  "Outside Delhi",
-];
+// spelling normalisations → canonical key (lowercase)
+const SPELLING_NORM = {
+  'sarojni nagar':   'sarojini nagar',
+  'gurugram':        'gurugram',
+  'gurgaon':         'gurugram',   // treat both as same sub-loc under Gurgaon
+};
 
-// Sub-locations to always show in breakdown (even if 0)
-const EOK_SUBS = ["East of Kailash","Aya Nagar","Ber Sarai","Chhatarpur","Katwaria Sarai","Lado Sarai","Mahipalpur","Mehrauli","Sultanpur"];
-const GGN_SUBS = ["Gurugram","Badshahpur"];
-const DWK_SUBS = ["Dwarka"];
-const SM_SUBS  = ["Chhipiwada"];
+// canonical display names for sub-locations
+const CANONICAL_DISPLAY = {
+  'east of kailash': 'East of Kailash',
+  'aya nagar':       'Aya Nagar',
+  'ber sarai':       'Ber Sarai',
+  'chhatarpur':      'Chhatarpur',
+  'katwaria sarai':  'Katwaria Sarai',
+  'lado sarai':      'Lado Sarai',
+  'mahipalpur':      'Mahipalpur',
+  'mehrauli':        'Mehrauli',
+  'sultanpur':       'Sultanpur',
+  'malviya nagar':   'Malviya Nagar',
+  'sarojini nagar':  'Sarojini Nagar',
+  'punjabi bagh':    'Punjabi Bagh',
+  'rohini':          'Rohini',
+  'gurugram':        'Gurugram',
+  'badshahpur':      'Badshahpur',
+  'dwarka':          'Dwarka',
+  'faridabad':       'Faridabad',
+  'ghaziabad':       'Ghaziabad',
+  'noida':           'Noida',
+  'chhipiwada':      'Chhipiwada',
+};
 
-// =============================================
-// GLOBAL STATE
-// =============================================
+// headings/noise words to skip
+const SKIP_WORDS = new Set([
+  'city', 'temple', 'mandir', 'location', 'center', 'centre',
+  'temple / mandir', 'name', 'offering', 'offerings', 'date', 'sl no',
+  'sl.no', 's.no', 'sr.no', 'sr', 'no', 's no',
+]);
 
+// ─── GLOBAL STATE ────────────────────────────────────────────────────────────
+
+let barChartInst = null;
+let pieChartInst = null;
+let outsideChartInst = null;
 let lastResult = null;
 
-// =============================================
-// CHART INSTANCES
-// =============================================
+// ─── INPUT METADATA ──────────────────────────────────────────────────────────
 
-let barChartInst = null, pieChartInst = null, outsideChartInst = null;
-
-// =============================================
-// INPUT METADATA
-// =============================================
-
-function updateMeta() {
-  ["1","2","3"].forEach(n => {
-    const ta = document.getElementById("input" + n);
-    const el = document.getElementById("meta" + n);
-    const lines = ta.value.split("\n").map(l => l.trim()).filter(l => l && !IGNORE_LINES.has(l.toLowerCase())).length;
-    el.textContent = lines > 0 ? `${lines} valid line${lines !== 1 ? "s" : ""} detected` : "—";
-  });
+function updateMeta(id, text) {
+  const lines = text.split('\n').filter(l => l.trim() !== '').length;
+  document.getElementById(id).textContent =
+    lines === 0 ? '—' : `${lines} line${lines !== 1 ? 's' : ''} pasted`;
 }
 
-["input1","input2","input3"].forEach(id => {
-  document.getElementById(id).addEventListener("input", updateMeta);
+['input1', 'input2', 'input3'].forEach((id, i) => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => updateMeta(`meta${i + 1}`, el.value));
 });
 
-// =============================================
-// CORE PROCESSING
-// =============================================
+// ─── PARSE & CATEGORISE ──────────────────────────────────────────────────────
 
-function cleanLine(raw) {
-  return raw.replace(/\s+/g, " ").trim();
+function normKey(raw) {
+  let k = raw.trim().toLowerCase();
+  // strip "iskcon " prefix for matching
+  k = k.replace(/^iskcon\s+/, '');
+  // apply spelling normalisation
+  return SPELLING_NORM[k] !== undefined ? SPELLING_NORM[k] : k;
 }
 
-function normalize(val) {
-  const key = val.toLowerCase().trim();
-  return NORM_LOOKUP[key] || val;
+function parseLines(text) {
+  return text.split('\n')
+    .map(l => l.trim())
+    .filter(l => l !== '' && !SKIP_WORDS.has(l.toLowerCase().replace(/^iskcon\s+/, '')));
 }
 
-function parseInput(text) {
-  return text.split("\n")
-    .map(cleanLine)
-    .filter(l => l && !IGNORE_LINES.has(l.toLowerCase()));
-}
+function processInputs(t1, t2, t3) {
+  // category totals
+  const catCount = {};
+  CATEGORIES.forEach(c => (catCount[c] = 0));
 
-function processData(raw1, raw2, raw3) {
-  const lines1 = parseInput(raw1);
-  const lines2 = parseInput(raw2);
-  const lines3 = parseInput(raw3);
+  // sub-location counts
+  const subCount = {}; // canonical key → count
 
-  // All items: {original, canonical, category, source}
-  const items = [];
+  // unknown locations (go to Outside Delhi)
+  const unknownCount = {}; // display name → count
 
-  function addLines(lines, source, forceOutsideDelhi) {
-    for (const line of lines) {
-      const canonical = normalize(line);
-      let category;
-      if (forceOutsideDelhi) {
-        category = "Outside Delhi";
-      } else {
-        category = CATEGORY_MAP[canonical] || "Outside Delhi";
-      }
-      items.push({ original: line, canonical, category, source });
+  function processLine(raw, forceOutside) {
+    const key = normKey(raw);
+    if (SKIP_WORDS.has(key)) return;
+
+    if (forceOutside) {
+      const display = raw.trim();
+      unknownCount[display] = (unknownCount[display] || 0) + 1;
+      catCount['Outside Delhi']++;
+      return;
     }
-  }
 
-  addLines(lines1, "offering", false);
-  addLines(lines2, "website", false);
-  addLines(lines3, "out-of-india", true);
-
-  // Count by category
-  const catCounts = {};
-  for (const cat of CATEGORY_ORDER) catCounts[cat] = 0;
-
-  // Count by canonical (for breakdown)
-  const canonicalCounts = {};
-
-  // Outside Delhi: count each original (normalized to canonical)
-  const outsideCounts = {};
-
-  // Track which canonicals are mapped (not outside)
-  const knownCanonicals = new Set(Object.keys(CATEGORY_MAP));
-
-  // Unknown location tracking (for admin)
-  const unknownSet = new Set();
-
-  for (const item of items) {
-    catCounts[item.category] = (catCounts[item.category] || 0) + 1;
-
-    if (item.category === "Outside Delhi") {
-      const key = item.canonical;
-      outsideCounts[key] = (outsideCounts[key] || 0) + 1;
-      // Flag as unknown if not in NORMALIZE_MAP and not a known name
-      if (!knownCanonicals.has(item.canonical)) {
-        unknownSet.add(item.original);
-      }
+    const cat = LOCATION_MAP[key];
+    if (cat) {
+      catCount[cat]++;
+      subCount[key] = (subCount[key] || 0) + 1;
     } else {
-      canonicalCounts[item.canonical] = (canonicalCounts[item.canonical] || 0) + 1;
+      // unknown → Outside Delhi
+      const display = raw.trim();
+      unknownCount[display] = (unknownCount[display] || 0) + 1;
+      catCount['Outside Delhi']++;
     }
   }
 
-  const total = items.length;
+  parseLines(t1).forEach(l => processLine(l, false));
+  parseLines(t2).forEach(l => processLine(l, false));
+  parseLines(t3).forEach(l => processLine(l, true));
 
-  return { catCounts, canonicalCounts, outsideCounts, total, items, unknownSet };
+  const total = CATEGORIES.reduce((s, c) => s + catCount[c], 0);
+
+  return { catCount, subCount, unknownCount, total };
 }
 
-// =============================================
-// REPORT GENERATION
-// =============================================
+// ─── REPORT BUILDERS ─────────────────────────────────────────────────────────
 
-function formatReport(catCounts, total) {
-  let lines = [];
-  for (const cat of CATEGORY_ORDER) {
-    lines.push(`${padLabel(cat, 22)} -  ${catCounts[cat] || 0}`);
-  }
-  lines.push("─".repeat(32));
-  lines.push(`${padLabel("Total Offerings", 22)} -  ${total}`);
-  return lines.join("\n");
+function buildFinalReport(catCount, total) {
+  let html = '';
+  CATEGORIES.forEach(cat => {
+    const cnt = catCount[cat];
+    if (cnt === 0) return;
+    html += `<div class="report-row">
+      <span class="r-loc">${cat}</span>
+      <span class="r-count">${cnt}</span>
+    </div>`;
+  });
+  html += `<div class="report-row total-row">
+    <span class="r-loc">TOTAL OFFERINGS</span>
+    <span class="r-count">${total}</span>
+  </div>`;
+  document.getElementById('final-report').innerHTML = html;
 }
 
-function buildBreakdownHTML(catCounts, canonicalCounts, outsideCounts) {
-  let html = "";
+function buildBreakdown(subCount, unknownCount) {
+  const EOK_LOCS = [
+    'east of kailash','aya nagar','ber sarai','chhatarpur','katwaria sarai',
+    'lado sarai','mahipalpur','mehrauli','sultanpur','malviya nagar','sarojini nagar',
+  ];
+  const GURGAON_LOCS = ['gurugram','badshahpur'];
+  const DWARKA_LOCS  = ['dwarka'];
+  const CHHIPI_LOCS  = ['chhipiwada'];
 
-  function group(title, subs, counts) {
-    html += `<div class="breakdown-group">`;
-    html += `<div class="breakdown-group-title">${title}</div>`;
-    for (const sub of subs) {
-      const c = counts[sub] || 0;
-      html += `<div class="bd-row"><span class="bd-loc">${sub}</span><span class="bd-count">${c}</span></div>`;
-    }
-    html += `</div>`;
+  function group(title, keys) {
+    const rows = keys
+      .filter(k => subCount[k])
+      .map(k => `<div class="bd-row">
+        <span class="bd-loc">${CANONICAL_DISPLAY[k] || k}</span>
+        <span class="bd-count">${subCount[k]}</span>
+      </div>`).join('');
+    if (!rows) return '';
+    return `<div class="breakdown-group">
+      <div class="breakdown-group-title">${title}</div>
+      ${rows}
+    </div>`;
   }
 
-  group("East of Kailash Breakdown", EOK_SUBS, canonicalCounts);
-  group("Gurgaon Breakdown", GGN_SUBS, canonicalCounts);
-  group("Delhi Dwarka Breakdown", DWK_SUBS, canonicalCounts);
-  group("Chhipiwada Breakdown", SM_SUBS, canonicalCounts);
+  let html = '';
+  html += group('East of Kailash Breakdown', EOK_LOCS);
+  html += group('Gurgaon Breakdown', GURGAON_LOCS);
+  html += group('Delhi Dwarka Breakdown', DWARKA_LOCS);
+  html += group('Chhipiwada Breakdown', CHHIPI_LOCS);
 
-  // Outside Delhi
-  const sorted = Object.entries(outsideCounts).sort((a, b) => b[1] - a[1]);
-  html += `<div class="breakdown-group">`;
-  html += `<div class="breakdown-group-title">Outside Delhi Breakdown</div>`;
-  if (sorted.length === 0) {
-    html += `<div class="bd-row"><span class="bd-loc" style="color:var(--dim)">No entries</span><span class="bd-count">0</span></div>`;
-  } else {
-    for (const [loc, cnt] of sorted) {
-      html += `<div class="bd-row"><span class="bd-loc">${loc}</span><span class="bd-count">${cnt}</span></div>`;
-    }
+  // Outside Delhi — sorted descending
+  const outsideEntries = Object.entries(unknownCount).sort((a, b) => b[1] - a[1]);
+  if (outsideEntries.length) {
+    const rows = outsideEntries.map(([loc, cnt]) =>
+      `<div class="bd-row"><span class="bd-loc">${loc}</span><span class="bd-count">${cnt}</span></div>`
+    ).join('');
+    html += `<div class="breakdown-group">
+      <div class="breakdown-group-title">Outside Delhi Breakdown</div>
+      ${rows}
+    </div>`;
   }
-  html += `</div>`;
 
-  return html;
+  document.getElementById('full-breakdown').innerHTML = html || '<div style="color:var(--muted)">No sub-location data.</div>';
 }
 
-function buildBreakdownText(catCounts, canonicalCounts, outsideCounts) {
-  let lines = [];
+// ─── DASHBOARD CARDS ─────────────────────────────────────────────────────────
 
-  function group(title, subs, counts) {
-    lines.push(`\n── ${title} ──`);
-    for (const sub of subs) {
-      const c = counts[sub] || 0;
-      lines.push(`  ${sub.padEnd(24)} = ${c}`);
-    }
-  }
+function buildCards(catCount, total) {
+  const topCat = CATEGORIES.reduce((best, c) =>
+    catCount[c] > (catCount[best] || 0) ? c : best, CATEGORIES[0]);
 
-  group("East of Kailash Breakdown", EOK_SUBS, canonicalCounts);
-  group("Gurgaon Breakdown", GGN_SUBS, canonicalCounts);
-  group("Delhi Dwarka Breakdown", DWK_SUBS, canonicalCounts);
-  group("Chhipiwada Breakdown", SM_SUBS, canonicalCounts);
-
-  lines.push(`\n── Outside Delhi Breakdown ──`);
-  const sorted = Object.entries(outsideCounts).sort((a, b) => b[1] - a[1]);
-  if (sorted.length === 0) {
-    lines.push("  (No entries)");
-  } else {
-    for (const [loc, cnt] of sorted) {
-      lines.push(`  ${loc.padEnd(28)} = ${cnt}`);
-    }
-  }
-  return lines.join("\n");
-}
-
-// =============================================
-// DASHBOARD CARDS
-// =============================================
-
-function buildCards(catCounts, total, outsideCounts, comparison) {
-  const topEntries = Object.entries(outsideCounts);
-  const topCat = CATEGORY_ORDER.slice(0, -1).reduce((a, b) =>
-    (catCounts[a] || 0) >= (catCounts[b] || 0) ? a : b, CATEGORY_ORDER[0]);
-
-  const diffSign = comparison.diff > 0 ? "+" : "";
-  const diffCls = comparison.diff > 0 ? "value-positive" : (comparison.diff < 0 ? "value-negative" : "");
-  const pctText = comparison.pct === null
-    ? "N/A"
-    : `${comparison.pct >= 0 ? "+" : ""}${comparison.pct.toFixed(1)}%`;
-  const pctCls = comparison.pct === null ? "" : (comparison.pct >= 0 ? "value-positive" : "value-negative");
-
-  const cards = [
-    { label: "Total Offerings", value: total, sub: "All sources combined", cls: "card-orange" },
-    { label: "East of Kailash", value: catCounts["East of Kailash"] || 0, sub: "9 sub-locations", cls: "card-gold" },
-    { label: "Punjabi Bagh", value: catCounts["Punjabi Bagh"] || 0, sub: "1 location", cls: "card-teal" },
-    { label: "Outside Delhi", value: catCounts["Outside Delhi"] || 0, sub: `${Object.keys(outsideCounts).length} unique locations`, cls: "card-lotus" },
-    { label: "Chhipiwada", value: catCounts["Chhipiwada"] || 0, sub: "1 location", cls: "card-sky" },
-    { label: "Top Performing", value: topCat, sub: `${catCounts[topCat] || 0} offerings`, cls: "card-gold" },
-    // Offering Comparison cards
-    { label: "Today's Total Offering", value: comparison.today, sub: "Current total", cls: "card-orange" },
-    { label: "Previous Day Offering", value: comparison.prevDay, sub: "Last recorded value", cls: "card-sky" },
-    { label: "Difference", value: `${diffSign}${comparison.diff}`, sub: comparison.diff >= 0 ? "Increase" : "Decrease", cls: "card-lotus", valueCls: diffCls },
-    { label: "Percentage Change", value: pctText, sub: comparison.pct === null ? "No previous day data" : (comparison.pct >= 0 ? "Increase" : "Decrease"), cls: "card-gold", valueCls: pctCls },
+  const defs = [
+    { label: 'Total Offerings',  value: total,                    cls: 'card-orange', sub: 'All inputs combined' },
+    { label: 'East of Kailash',  value: catCount['East of Kailash'], cls: 'card-gold',   sub: '11 sub-locations' },
+    { label: 'Punjabi Bagh',     value: catCount['Punjabi Bagh'],  cls: 'card-sky',    sub: '' },
+    { label: 'Rohini',           value: catCount['Rohini'],        cls: 'card-teal',   sub: '' },
+    { label: 'Gurgaon',          value: catCount['Gurgaon'],       cls: 'card-lotus',  sub: 'Gurugram + Badshahpur' },
+    { label: 'Delhi Dwarka',     value: catCount['Delhi Dwarka'],  cls: 'card-sky',    sub: '' },
+    { label: 'Outside Delhi',    value: catCount['Outside Delhi'], cls: 'card-gold',   sub: 'Incl. Input 3' },
+    { label: 'Top Category',     value: topCat,                   cls: 'card-orange', sub: `${catCount[topCat]} offerings`, isText: true },
   ];
 
-  return cards.map(c => `
-    <div class="card ${c.cls}">
-      <div class="card-label">${c.label}</div>
-      <div class="card-value ${c.valueCls || ""}">${c.value}</div>
-      <div class="card-sub">${c.sub}</div>
-    </div>
-  `).join("");
+  const grid = document.getElementById('cards-grid');
+  grid.innerHTML = defs.map(d => `
+    <div class="card ${d.cls}">
+      <div class="card-label">${d.label}</div>
+      <div class="card-value ${d.isText ? 'card-value-text' : ''}">${d.isText ? d.value : d.value.toLocaleString()}</div>
+      ${d.sub ? `<div class="card-sub">${d.sub}</div>` : ''}
+    </div>`).join('');
 }
 
-// =============================================
-// CHARTS
-// =============================================
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
 
-const CHART_COLORS = ["#f4860a","#e8c14a","#3ecfb2","#4ca8f5","#d94f7e","#a78bfa","#34d399","#fb923c","#60a5fa","#f472b6"];
+const CHART_COLORS = ['#f4860a','#e8c14a','#4ca8f5','#3ecfb2','#d94f7e','#a78bfa','#fb923c','#34d399','#f472b6','#60a5fa'];
 
-function renderCharts(catCounts, outsideCounts) {
-  const labels = CATEGORY_ORDER;
-  const data = labels.map(l => catCounts[l] || 0);
+function destroyCharts() {
+  [barChartInst, pieChartInst, outsideChartInst].forEach(c => { if (c) c.destroy(); });
+  barChartInst = pieChartInst = outsideChartInst = null;
+}
 
-  // Destroy old charts
-  if (barChartInst) { barChartInst.destroy(); barChartInst = null; }
-  if (pieChartInst) { pieChartInst.destroy(); pieChartInst = null; }
-  if (outsideChartInst) { outsideChartInst.destroy(); outsideChartInst = null; }
+function buildCharts(catCount, unknownCount) {
+  destroyCharts();
 
-  const chartDefaults = {
-    plugins: {
-      legend: { labels: { color: "#8b90aa", font: { size: 11 } } },
-      tooltip: { backgroundColor: "#22263a", titleColor: "#e8e9f0", bodyColor: "#8b90aa", borderColor: "#2e3350", borderWidth: 1 }
-    }
+  const cats = CATEGORIES.filter(c => catCount[c] > 0);
+  const vals = cats.map(c => catCount[c]);
+
+  const gridOpts = {
+    color: 'rgba(255,255,255,0.06)',
   };
+  const tickOpts = { color: '#8b90aa', font: { size: 11 } };
+  const legendOpts = { labels: { color: '#e8e9f0', font: { size: 11 }, boxWidth: 12 } };
 
-  // Bar chart
-  barChartInst = new Chart(document.getElementById("barChart"), {
-    type: "bar",
+  // Bar
+  barChartInst = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
     data: {
-      labels,
-      datasets: [{
-        label: "Offerings",
-        data,
-        backgroundColor: CHART_COLORS,
-        borderRadius: 5,
-        borderSkipped: false
-      }]
+      labels: cats,
+      datasets: [{ data: vals, backgroundColor: CHART_COLORS.slice(0, cats.length), borderRadius: 6, borderSkipped: false }],
     },
     options: {
       responsive: true,
-      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} offerings` } } },
       scales: {
-        x: { ticks: { color: "#8b90aa", font: { size: 10 } }, grid: { color: "#2e3350" } },
-        y: { ticks: { color: "#8b90aa" }, grid: { color: "#2e3350" }, beginAtZero: true }
-      }
-    }
+        x: { ticks: { ...tickOpts, maxRotation: 30 }, grid: gridOpts },
+        y: { ticks: tickOpts, grid: gridOpts, beginAtZero: true },
+      },
+    },
   });
 
-  // Pie chart (only non-zero)
-  const pieLabels = labels.filter((l, i) => data[i] > 0);
-  const pieData   = data.filter(d => d > 0);
-
-  pieChartInst = new Chart(document.getElementById("pieChart"), {
-    type: "doughnut",
+  // Pie / Doughnut
+  pieChartInst = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
     data: {
-      labels: pieLabels,
-      datasets: [{
-        data: pieData,
-        backgroundColor: CHART_COLORS,
-        borderColor: "#1a1d27",
-        borderWidth: 2
-      }]
+      labels: cats,
+      datasets: [{ data: vals, backgroundColor: CHART_COLORS.slice(0, cats.length), borderWidth: 2, borderColor: '#1a1d27' }],
     },
     options: {
       responsive: true,
-      plugins: { ...chartDefaults.plugins, legend: { position: "right", labels: { color: "#8b90aa", font: { size: 10 }, boxWidth: 12 } } }
-    }
+      plugins: { legend: { ...legendOpts, position: 'bottom' } },
+    },
   });
 
-  // Outside Delhi chart
-  const sortedOutside = Object.entries(outsideCounts).sort((a,b) => b[1]-a[1]).slice(0, 20);
-  outsideChartInst = new Chart(document.getElementById("outsideChart"), {
-    type: "bar",
-    data: {
-      labels: sortedOutside.map(e => e[0]),
-      datasets: [{
-        label: "Count",
-        data: sortedOutside.map(e => e[1]),
-        backgroundColor: "#d94f7e",
-        borderRadius: 4,
-        borderSkipped: false
-      }]
-    },
-    options: {
-      responsive: true,
-      indexAxis: sortedOutside.length > 8 ? "y" : "x",
-      plugins: { ...chartDefaults.plugins, legend: { display: false } },
-      scales: {
-        x: { ticks: { color: "#8b90aa", font: { size: 10 } }, grid: { color: "#2e3350" } },
-        y: { ticks: { color: "#8b90aa", font: { size: 10 } }, grid: { color: "#2e3350" }, beginAtZero: true }
-      }
-    }
-  });
+  // Outside Delhi breakdown
+  const outsideEntries = Object.entries(unknownCount).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  if (outsideEntries.length) {
+    outsideChartInst = new Chart(document.getElementById('outsideChart'), {
+      type: 'bar',
+      data: {
+        labels: outsideEntries.map(e => e[0]),
+        datasets: [{ data: outsideEntries.map(e => e[1]), backgroundColor: '#4ca8f5', borderRadius: 4 }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: tickOpts, grid: gridOpts, beginAtZero: true },
+          y: { ticks: { ...tickOpts, font: { size: 10 } }, grid: { display: false } },
+        },
+      },
+    });
+  } else {
+    const ctx = document.getElementById('outsideChart');
+    ctx.parentElement.innerHTML = `<div class="chart-title">Outside Delhi — Location Breakdown</div><div style="color:var(--muted);padding:32px;text-align:center;font-size:.85rem;">No Outside Delhi entries.</div>`;
+  }
 }
 
-// =============================================
-// MAIN CALCULATE FUNCTION
-// =============================================
+// ─── UNKNOWN LOCATIONS ───────────────────────────────────────────────────────
+
+function buildUnknown(unknownCount) {
+  const sec = document.getElementById('unknown-section');
+  const list = document.getElementById('unknown-list');
+  const entries = Object.entries(unknownCount).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  list.innerHTML = entries.map(([loc, cnt]) =>
+    `<div class="bd-row"><span class="bd-loc">${loc}</span><span class="bd-count">${cnt}</span></div>`
+  ).join('');
+}
+
+// ─── MAIN CALCULATE ──────────────────────────────────────────────────────────
 
 function calculateReport() {
-  const raw1 = document.getElementById("input1").value;
-  const raw2 = document.getElementById("input2").value;
-  const raw3 = document.getElementById("input3").value;
+  const t1 = document.getElementById('input1').value;
+  const t2 = document.getElementById('input2').value;
+  const t3 = document.getElementById('input3').value;
 
-  if (!raw1.trim() && !raw2.trim() && !raw3.trim()) {
-    showToast("⚠️ Please paste data in at least one input field.");
+  if (!t1.trim() && !t2.trim() && !t3.trim()) {
+    showToast('⚠️ Paste data in at least one input field.');
     return;
   }
 
-  const result = processData(raw1, raw2, raw3);
+  const result = processInputs(t1, t2, t3);
   lastResult = result;
-  const { catCounts, canonicalCounts, outsideCounts, total, unknownSet } = result;
+  const { catCount, subCount, unknownCount, total } = result;
 
-  // Offering Comparison (Previous Day vs Today)
-  const comparison = computeComparison(total);
-  lastResult.comparison = comparison;
+  buildCards(catCount, total);
+  buildFinalReport(catCount, total);
+  buildBreakdown(subCount, unknownCount);
+  buildCharts(catCount, unknownCount);
+  buildUnknown(unknownCount);
 
-  // Validation: sum of categories should equal total
-  const catSum = CATEGORY_ORDER.reduce((s, c) => s + (catCounts[c] || 0), 0);
-  if (catSum !== total) {
-    console.warn("Count mismatch:", catSum, "vs", total);
-  }
-
-  // Final report (text)
-  const reportText = formatReport(catCounts, total);
-  document.getElementById("final-report").innerHTML = buildReportHTML(catCounts, total);
-
-  // Offering Comparison section
-  document.getElementById("comparison-report").innerHTML = buildComparisonHTML(comparison);
-
-  // Cards
-  document.getElementById("cards-grid").innerHTML = buildCards(catCounts, total, outsideCounts, comparison);
-
-  // Breakdown
-  document.getElementById("full-breakdown").innerHTML = buildBreakdownHTML(catCounts, canonicalCounts, outsideCounts);
-
-  // Unknown locations
-  const unknownSection = document.getElementById("unknown-section");
-  if (unknownSet.size > 0) {
-    unknownSection.style.display = "";
-    const listEl = document.getElementById("unknown-list");
-    let lines = [...unknownSet].sort().map(u => `  ${u} → Outside Delhi`).join("\n");
-    listEl.textContent = lines;
-  } else {
-    unknownSection.style.display = "none";
-  }
-
-  // Charts
-  renderCharts(catCounts, outsideCounts);
-
-  // Show results
-  const resultsEl = document.getElementById("results");
-  resultsEl.classList.remove("hidden");
-  resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
-
-  // Enable export buttons
-  ["btn-copy-report","btn-copy-breakdown","btn-excel","btn-pdf"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = false;
+  document.getElementById('results').classList.remove('hidden');
+  ['btn-copy-report','btn-copy-breakdown','btn-excel','btn-pdf'].forEach(id => {
+    document.getElementById(id).disabled = false;
   });
 
-  showToast(`✅ Report generated — ${total} total offerings processed.`);
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showToast('✅ Report generated successfully!');
 }
 
-function buildReportHTML(catCounts, total) {
-  let html = "";
-  for (const cat of CATEGORY_ORDER) {
-    html += `<div class="report-row">
-      <span class="r-loc">${cat}</span>
-      <span class="r-count">${catCounts[cat] || 0}</span>
-    </div>`;
-  }
-  html += `<div class="report-row total-row">
-    <span class="r-loc">Total Offerings</span>
-    <span class="r-count">${total}</span>
-  </div>`;
-  return html;
+// ─── COPY HELPERS ────────────────────────────────────────────────────────────
+
+function getTextFromEl(id) {
+  const el = document.getElementById(id);
+  // strip html → plain text
+  const tmp = document.createElement('div');
+  tmp.innerHTML = el.innerHTML;
+  return tmp.innerText || tmp.textContent;
 }
-
-// =============================================
-// OFFERING COMPARISON (Previous Day vs Today)
-// =============================================
-
-// Read the Previous Day Offering numeric input (safe parse, never negative)
-function getPreviousDayOffering() {
-  const el = document.getElementById("prevDayInput");
-  if (!el) return 0;
-  const v = parseFloat(el.value);
-  return (isNaN(v) || v < 0) ? 0 : v;
-}
-
-// Compute comparison metrics. Divide-by-zero is handled by returning pct = null
-// (displayed as "N/A") whenever there is no previous day value to compare against.
-function computeComparison(todayTotal) {
-  const prevDay = getPreviousDayOffering();
-  const diff = todayTotal - prevDay;
-  const pct = prevDay > 0 ? (diff / prevDay) * 100 : null;
-  return { prevDay, today: todayTotal, diff, pct };
-}
-
-// Plain-text formatter, shared by Copy Report / Copy Breakdown / PDF export
-function formatComparisonText(cmp) {
-  const diffSign = cmp.diff > 0 ? "+" : "";
-  const pctText = cmp.pct === null
-    ? "N/A (no previous day data)"
-    : `${cmp.pct >= 0 ? "+" : ""}${cmp.pct.toFixed(2)}%`;
-  return [
-    `${padLabel("Previous Day Offering", 22)} -  ${cmp.prevDay}`,
-    `${padLabel("Today's Offering", 22)} -  ${cmp.today}`,
-    `${padLabel("Difference", 22)} -  ${diffSign}${cmp.diff}`,
-    `${padLabel("Percentage Change", 22)} -  ${pctText}`,
-  ].join("\n");
-}
-
-// HTML formatter for the on-page "Offering Comparison" section
-function buildComparisonHTML(cmp) {
-  const diffSign = cmp.diff > 0 ? "+" : "";
-  const pctText = cmp.pct === null
-    ? "N/A"
-    : `${cmp.pct >= 0 ? "+" : ""}${cmp.pct.toFixed(2)}%`;
-  const diffClass = cmp.diff > 0 ? "value-positive" : (cmp.diff < 0 ? "value-negative" : "");
-  const pctClass = cmp.pct === null ? "" : (cmp.pct >= 0 ? "value-positive" : "value-negative");
-
-  return `
-    <div class="report-row">
-      <span class="r-loc">Previous Day Offering</span>
-      <span class="r-count">${cmp.prevDay}</span>
-    </div>
-    <div class="report-row">
-      <span class="r-loc">Today's Offering</span>
-      <span class="r-count">${cmp.today}</span>
-    </div>
-    <div class="report-row">
-      <span class="r-loc">Difference</span>
-      <span class="r-count ${diffClass}">${diffSign}${cmp.diff}</span>
-    </div>
-    <div class="report-row total-row">
-      <span class="r-loc">Percentage Change</span>
-      <span class="r-count ${pctClass}">${pctText}</span>
-    </div>
-  `;
-}
-
-// localStorage persistence for the Previous Day Offering field
-function savePreviousDayOffering(value) {
-  try {
-    localStorage.setItem(PREV_DAY_STORAGE_KEY, value);
-  } catch (e) {
-    console.warn("Could not save Previous Day Offering to localStorage:", e);
-  }
-}
-
-function loadPreviousDayOffering() {
-  try {
-    const v = localStorage.getItem(PREV_DAY_STORAGE_KEY);
-    return v !== null ? v : "";
-  } catch (e) {
-    console.warn("Could not read Previous Day Offering from localStorage:", e);
-    return "";
-  }
-}
-
-// =============================================
-// CLEAR
-// =============================================
-
-function clearAll() {
-  ["input1","input2","input3"].forEach(id => {
-    document.getElementById(id).value = "";
-  });
-  updateMeta();
-  document.getElementById("results").classList.add("hidden");
-  document.getElementById("comparison-report").innerHTML = "";
-  lastResult = null;
-  ["btn-copy-report","btn-copy-breakdown","btn-excel","btn-pdf"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = true;
-  });
-  showToast("🗑 All data cleared.");
-}
-
-// =============================================
-// COPY
-// =============================================
 
 function copyFinalReport() {
-  if (!lastResult) { showToast("⚠️ Generate a report first."); return; }
-  const text = formatReport(lastResult.catCounts, lastResult.total);
-  const cmpText = formatComparisonText(lastResult.comparison);
-  copyText(
-    `Offering Collection Report\n${"=".repeat(35)}\n\n${text}\n\n` +
-    `Offering Comparison\n${"=".repeat(35)}\n\n${cmpText}`
-  );
-  showToast("📋 Final report copied to clipboard.");
+  if (!lastResult) return;
+  const { catCount, total } = lastResult;
+  let text = 'Category-wise Offering Summary\n';
+  text += '─'.repeat(36) + '\n';
+  CATEGORIES.forEach(cat => {
+    if (catCount[cat] > 0)
+      text += `${cat.padEnd(22)}  ${catCount[cat]}\n`;
+  });
+  text += '─'.repeat(36) + '\n';
+  text += `${'TOTAL OFFERINGS'.padEnd(22)}  ${total}\n`;
+  navigator.clipboard.writeText(text).then(() => showToast('📋 Final report copied!'));
 }
 
 function copyFullBreakdown() {
-  if (!lastResult) { showToast("⚠️ Generate a report first."); return; }
-  const { catCounts, canonicalCounts, outsideCounts, total, comparison } = lastResult;
-  const header = `Offering Collection — Full Breakdown\n${"=".repeat(40)}\n`;
-  const report = formatReport(catCounts, total);
-  const breakdown = buildBreakdownText(catCounts, canonicalCounts, outsideCounts);
-  const cmpText = formatComparisonText(comparison);
-  copyText(
-    header + report + "\n" + breakdown +
-    `\n\nOffering Comparison\n${"=".repeat(40)}\n\n${cmpText}`
-  );
-  showToast("📄 Full breakdown copied to clipboard.");
+  if (!lastResult) return;
+  navigator.clipboard.writeText(getTextFromEl('full-breakdown'))
+    .then(() => showToast('📄 Breakdown copied!'));
 }
 
-function copyText(text) {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-  } else {
-    fallbackCopy(text);
-  }
-}
-
-function fallbackCopy(text) {
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.select();
-  document.execCommand("copy");
-  document.body.removeChild(ta);
-}
-
-// =============================================
-// EXCEL EXPORT
-// =============================================
+// ─── EXCEL EXPORT ────────────────────────────────────────────────────────────
 
 function downloadExcel() {
-  if (!lastResult) { showToast("⚠️ Generate a report first."); return; }
-  const { catCounts, canonicalCounts, outsideCounts, total, comparison } = lastResult;
-
+  if (!lastResult) return;
+  const { catCount, subCount, unknownCount, total } = lastResult;
   const wb = XLSX.utils.book_new();
 
-  // Sheet 1: Summary
-  const sumData = [["Category", "Count"]];
-  for (const cat of CATEGORY_ORDER) {
-    sumData.push([cat, catCounts[cat] || 0]);
-  }
-  sumData.push(["Total Offerings", total]);
-  const ws1 = XLSX.utils.aoa_to_sheet(sumData);
-  ws1["!cols"] = [{ wch: 25 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, ws1, "Summary");
+  // --- Summary sheet ---
+  const summaryData = [['Category', 'Count']];
+  CATEGORIES.forEach(c => summaryData.push([c, catCount[c]]));
+  summaryData.push(['', '']);
+  summaryData.push(['TOTAL OFFERINGS', total]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), 'Summary');
 
-  // Sheet 2: Offering Comparison
-  const cmpData = [
-    ["Metric", "Value"],
-    ["Previous Day Offering", comparison.prevDay],
-    ["Today's Offering", comparison.today],
-    ["Difference", comparison.diff],
-    ["Percentage Change", comparison.pct === null ? "N/A" : `${comparison.pct.toFixed(2)}%`],
-  ];
-  const wsCmp = XLSX.utils.aoa_to_sheet(cmpData);
-  wsCmp["!cols"] = [{ wch: 25 }, { wch: 15 }];
-  XLSX.utils.book_append_sheet(wb, wsCmp, "Offering Comparison");
+  // --- East of Kailash sheet ---
+  const eokKeys = ['east of kailash','aya nagar','ber sarai','chhatarpur','katwaria sarai',
+    'lado sarai','mahipalpur','mehrauli','sultanpur','malviya nagar','sarojini nagar'];
+  const eokData = [['Location', 'Count']];
+  eokKeys.forEach(k => eokData.push([CANONICAL_DISPLAY[k] || k, subCount[k] || 0]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(eokData), 'East of Kailash');
 
-  // Sheet 3: EOK Breakdown
-  const eokData = [["Location", "Count"]];
-  for (const s of EOK_SUBS) eokData.push([s, canonicalCounts[s] || 0]);
-  const ws2 = XLSX.utils.aoa_to_sheet(eokData);
-  ws2["!cols"] = [{ wch: 25 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, ws2, "East of Kailash");
+  // --- Other Breakdowns sheet ---
+  const otherData = [['Category', 'Sub-Location', 'Count']];
+  [
+    { cat: 'Gurgaon',      keys: ['gurugram','badshahpur'] },
+    { cat: 'Delhi Dwarka', keys: ['dwarka'] },
+    { cat: 'Chhipiwada',   keys: ['chhipiwada'] },
+  ].forEach(({ cat, keys }) => {
+    keys.forEach(k => {
+      if (subCount[k]) otherData.push([cat, CANONICAL_DISPLAY[k] || k, subCount[k]]);
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(otherData), 'Other Breakdowns');
 
-  // Sheet 4: Other breakdowns
-  const otherData = [["Category", "Location", "Count"]];
-  for (const s of GGN_SUBS) otherData.push(["Gurgaon", s, canonicalCounts[s] || 0]);
-  for (const s of DWK_SUBS) otherData.push(["Delhi Dwarka", s, canonicalCounts[s] || 0]);
-  for (const s of SM_SUBS) otherData.push(["Chhipiwada", s, canonicalCounts[s] || 0]);
-  const ws3 = XLSX.utils.aoa_to_sheet(otherData);
-  ws3["!cols"] = [{ wch: 20 }, { wch: 22 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, ws3, "Other Breakdowns");
+  // --- Outside Delhi sheet ---
+  const outsideData = [['Location', 'Count']];
+  Object.entries(unknownCount).sort((a,b)=>b[1]-a[1]).forEach(([loc, cnt]) => outsideData.push([loc, cnt]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(outsideData), 'Outside Delhi');
 
-  // Sheet 5: Outside Delhi
-  const outData = [["Location", "Count"]];
-  const sorted = Object.entries(outsideCounts).sort((a,b) => b[1]-a[1]);
-  for (const [loc, cnt] of sorted) outData.push([loc, cnt]);
-  const ws4 = XLSX.utils.aoa_to_sheet(outData);
-  ws4["!cols"] = [{ wch: 30 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, ws4, "Outside Delhi");
+  // --- Raw Data sheet ---
+  const t1 = document.getElementById('input1').value;
+  const t2 = document.getElementById('input2').value;
+  const t3 = document.getElementById('input3').value;
+  const rawData = [['Source', 'Raw Line']];
+  parseLines(t1).forEach(l => rawData.push(['Offering Collection', l]));
+  parseLines(t2).forEach(l => rawData.push(['Website Offering', l]));
+  parseLines(t3).forEach(l => rawData.push(['Out of India', l]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rawData), 'Raw Data');
 
-  // Sheet 6: Raw data
-  const rawData = [["Original Input", "Canonical Name", "Category", "Source"]];
-  for (const item of lastResult.items) {
-    rawData.push([item.original, item.canonical, item.category, item.source]);
-  }
-  const ws5 = XLSX.utils.aoa_to_sheet(rawData);
-  ws5["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 20 }, { wch: 14 }];
-  XLSX.utils.book_append_sheet(wb, ws5, "Raw Data");
-
-  XLSX.writeFile(wb, "Offering_Report.xlsx");
-  showToast("📊 Excel downloaded successfully.");
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Offering_Report_${today}.xlsx`);
+  showToast('📊 Excel downloaded!');
 }
 
-// =============================================
-// PDF EXPORT
-// =============================================
+// ─── PDF EXPORT ──────────────────────────────────────────────────────────────
 
 function downloadPDF() {
-  if (!lastResult) { showToast("⚠️ Generate a report first."); return; }
-  const { catCounts, canonicalCounts, outsideCounts, total, comparison } = lastResult;
+  if (!lastResult) return;
+  const { catCount, subCount, unknownCount, total } = lastResult;
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-  const now = new Date().toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short" });
+  const today = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   let y = 18;
 
   // Title
-  doc.setFontSize(16);
-  doc.setTextColor(40, 40, 40);
-  doc.text("Offering Collection Management Report", 105, y, { align: "center" });
-  y += 7;
-  doc.setFontSize(9);
-  doc.setTextColor(120, 120, 120);
-  doc.text(`Generated: ${now}`, 105, y, { align: "center" });
-  y += 10;
+  doc.setFontSize(16); doc.setFont('helvetica','bold');
+  doc.text('Offering Collection Report', 14, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.setTextColor(120); doc.text(`Generated: ${today}`, 14, y); doc.setTextColor(0); y += 10;
 
   // Summary table
   doc.autoTable({
     startY: y,
-    head: [["Category", "Count"]],
+    head: [['Category', 'Count']],
     body: [
-      ...CATEGORY_ORDER.map(cat => [cat, catCounts[cat] || 0]),
-      ["Total Offerings", total]
+      ...CATEGORIES.map(c => [c, catCount[c]]),
+      ['TOTAL OFFERINGS', total],
     ],
-    theme: "striped",
-    headStyles: { fillColor: [244, 134, 10], textColor: 255, fontStyle: "bold" },
-    footStyles: { fillColor: [232, 193, 74] },
-    styles: { fontSize: 10 },
-    margin: { left: 20, right: 20 }
+    styles: { fontSize: 10, cellPadding: 3 },
+    headStyles: { fillColor: [244, 134, 10] },
+    foot: [],
+    didParseCell: data => {
+      if (data.row.index === CATEGORIES.length) {
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
   });
+  y = doc.lastAutoTable.finalY + 12;
 
-  y = doc.lastAutoTable.finalY + 10;
+  // EoK breakdown
+  const eokKeys = ['east of kailash','aya nagar','ber sarai','chhatarpur','katwaria sarai',
+    'lado sarai','mahipalpur','mehrauli','sultanpur','malviya nagar','sarojini nagar'];
+  const eokRows = eokKeys.filter(k => subCount[k]).map(k => [CANONICAL_DISPLAY[k] || k, subCount[k]]);
+  if (eokRows.length) {
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text('East of Kailash Breakdown', 14, y); y += 2;
+    doc.autoTable({ startY: y, head: [['Location','Count']], body: eokRows, styles: { fontSize: 9 }, headStyles: { fillColor: [62,207,178] } });
+    y = doc.lastAutoTable.finalY + 10;
+  }
 
-  // Offering Comparison
-  const pctDisplay = comparison.pct === null ? "N/A" : `${comparison.pct >= 0 ? "+" : ""}${comparison.pct.toFixed(2)}%`;
-  const diffDisplay = `${comparison.diff > 0 ? "+" : ""}${comparison.diff}`;
-  doc.setFontSize(12);
-  doc.setTextColor(40, 40, 40);
-  doc.text("Offering Comparison", 20, y);
-  y += 3;
-  doc.autoTable({
-    startY: y,
-    head: [["Metric", "Value"]],
-    body: [
-      ["Previous Day Offering", String(comparison.prevDay)],
-      ["Today's Offering", String(comparison.today)],
-      ["Difference", diffDisplay],
-      ["Percentage Change", pctDisplay],
-    ],
-    theme: "grid",
-    headStyles: { fillColor: [217, 79, 126] },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 }
-  });
-
-  y = doc.lastAutoTable.finalY + 10;
-
-  // EOK Breakdown
-  doc.setFontSize(12);
-  doc.setTextColor(40, 40, 40);
-  doc.text("East of Kailash Breakdown", 20, y);
-  y += 3;
-  doc.autoTable({
-    startY: y,
-    head: [["Location", "Count"]],
-    body: EOK_SUBS.map(s => [s, canonicalCounts[s] || 0]),
-    theme: "grid",
-    headStyles: { fillColor: [62, 207, 178] },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 }
-  });
-
-  y = doc.lastAutoTable.finalY + 10;
-
-  // Other Breakdowns
-  const otherRows = [
-    ...GGN_SUBS.map(s => ["Gurgaon", s, canonicalCounts[s] || 0]),
-    ...DWK_SUBS.map(s => ["Delhi Dwarka", s, canonicalCounts[s] || 0]),
-    ...SM_SUBS.map(s => ["Chhipiwada", s, canonicalCounts[s] || 0]),
+  // Other breakdowns
+  const others = [
+    { title: 'Gurgaon Breakdown',      keys: ['gurugram','badshahpur'] },
+    { title: 'Delhi Dwarka Breakdown', keys: ['dwarka'] },
+    { title: 'Chhipiwada Breakdown',   keys: ['chhipiwada'] },
   ];
-  doc.setFontSize(12);
-  doc.text("Other Breakdowns", 20, y);
-  y += 3;
-  doc.autoTable({
-    startY: y,
-    head: [["Category", "Location", "Count"]],
-    body: otherRows,
-    theme: "grid",
-    headStyles: { fillColor: [76, 168, 245] },
-    styles: { fontSize: 9 },
-    margin: { left: 20, right: 20 }
+  others.forEach(({ title, keys }) => {
+    const rows = keys.filter(k => subCount[k]).map(k => [CANONICAL_DISPLAY[k] || k, subCount[k]]);
+    if (!rows.length) return;
+    if (y > 240) { doc.addPage(); y = 18; }
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text(title, 14, y); y += 2;
+    doc.autoTable({ startY: y, head: [['Location','Count']], body: rows, styles: { fontSize: 9 }, headStyles: { fillColor: [76,168,245] } });
+    y = doc.lastAutoTable.finalY + 10;
   });
 
   // Outside Delhi
-  const sorted = Object.entries(outsideCounts).sort((a,b) => b[1]-a[1]);
-  if (sorted.length > 0) {
-    doc.addPage();
-    y = 18;
-    doc.setFontSize(12);
-    doc.setTextColor(40, 40, 40);
-    doc.text("Outside Delhi Breakdown", 20, y);
-    y += 3;
-    doc.autoTable({
-      startY: y,
-      head: [["Location", "Count"]],
-      body: sorted,
-      theme: "grid",
-      headStyles: { fillColor: [217, 79, 126] },
-      styles: { fontSize: 9 },
-      margin: { left: 20, right: 20 }
-    });
+  const outsideRows = Object.entries(unknownCount).sort((a,b)=>b[1]-a[1]);
+  if (outsideRows.length) {
+    if (y > 220) { doc.addPage(); y = 18; }
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text('Outside Delhi Breakdown', 14, y); y += 2;
+    doc.autoTable({ startY: y, head: [['Location','Count']], body: outsideRows, styles: { fontSize: 9 }, headStyles: { fillColor: [217,79,126] } });
   }
 
-  doc.save("Offering_Report.pdf");
-  showToast("📑 PDF downloaded successfully.");
+  const dateStr = new Date().toISOString().slice(0,10);
+  doc.save(`Offering_Report_${dateStr}.pdf`);
+  showToast('📑 PDF downloaded!');
 }
 
-// =============================================
-// TOAST
-// =============================================
+// ─── CLEAR ───────────────────────────────────────────────────────────────────
+
+function clearAll() {
+  ['input1','input2','input3'].forEach(id => { document.getElementById(id).value = ''; });
+  ['meta1','meta2','meta3'].forEach(id => { document.getElementById(id).textContent = '—'; });
+  document.getElementById('results').classList.add('hidden');
+  ['btn-copy-report','btn-copy-breakdown','btn-excel','btn-pdf'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+  destroyCharts();
+  lastResult = null;
+  showToast('🗑 All cleared.');
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
 
 let toastTimer = null;
 function showToast(msg) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.classList.remove("hidden");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add("hidden"), 3200);
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), 2800);
 }
-
-// =============================================
-// INIT
-// =============================================
-
-updateMeta();
-
-// Restore Previous Day Offering from localStorage and persist future changes
-(function initPreviousDayOffering() {
-  const el = document.getElementById("prevDayInput");
-  if (!el) return;
-  el.value = loadPreviousDayOffering();
-  el.addEventListener("input", () => savePreviousDayOffering(el.value));
-})();
