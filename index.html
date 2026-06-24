@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offering Collection Management System</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-icon">🪔</div>
+      <div>
+        <div class="header-badge">Dashboard</div>
+        <h1 class="header-title">Offering Collection Management</h1>
+        <p class="header-sub">Paste raw data — the system cleans, normalises, counts, and generates a full report automatically.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Input Section -->
+    <section class="section">
+      <h2 class="section-title">Data Input</h2>
+
+      <div class="inputs-grid">
+        <!-- Input 1 -->
+        <div class="input-block">
+          <label class="input-label" for="input1">
+            <span class="label-dot dot-orange"></span>
+            Offering Collection Data
+          </label>
+          <textarea id="input1" class="textarea" placeholder="Paste Offering Collection Data here…
+
+Example:
+City
+Punjabi Bagh
+East of Kailash
+Aya Nagar
+Dwarka
+Gurugram"></textarea>
+          <div class="input-meta" id="meta1">—</div>
+        </div>
+
+        <!-- Input 2 -->
+        <div class="input-block">
+          <label class="input-label" for="input2">
+            <span class="label-dot dot-blue"></span>
+            Website Offering Data
+          </label>
+          <textarea id="input2" class="textarea" placeholder="Paste Website Offering Data here…
+
+Example:
+Temple / Mandir
+ISKCON Punjabi Bagh
+ISKCON East of Kailash
+ISKCON Rohini
+ISKCON Dwarka"></textarea>
+          <div class="input-meta" id="meta2">—</div>
+        </div>
+
+        <!-- Input 3 -->
+        <div class="input-block">
+          <label class="input-label" for="input3">
+            <span class="label-dot dot-green"></span>
+            Out of India Offerings
+          </label>
+          <textarea id="input3" class="textarea" placeholder="Paste Out of India Offerings here…
+
+All entries in this box are counted under Outside Delhi.
+
+Example:
+Devasadan Mandir
+ISKCON Atlanta
+ISKCON Detroit"></textarea>
+          <div class="input-meta" id="meta3">—</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="calculateReport()">
+          <span>⚡</span> Calculate Report
+        </button>
+        <button class="btn btn-ghost" onclick="clearAll()">
+          <span>🗑</span> Clear All
+        </button>
+        <button class="btn btn-outline" onclick="copyFinalReport()" id="btn-copy-report" disabled>
+          <span>📋</span> Copy Final Report
+        </button>
+        <button class="btn btn-outline" onclick="copyFullBreakdown()" id="btn-copy-breakdown" disabled>
+          <span>📄</span> Copy Breakdown
+        </button>
+        <button class="btn btn-outline" onclick="downloadExcel()" id="btn-excel" disabled>
+          <span>📊</span> Download Excel
+        </button>
+        <button class="btn btn-outline" onclick="downloadPDF()" id="btn-pdf" disabled>
+          <span>📑</span> Download PDF
+        </button>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <div id="results" class="results-area hidden">
+
+      <!-- Dashboard Cards -->
+      <section class="section">
+        <h2 class="section-title">Dashboard Summary</h2>
+        <div class="cards-grid" id="cards-grid"></div>
+      </section>
+
+      <!-- Final Report -->
+      <section class="section">
+        <h2 class="section-title">Final Report</h2>
+        <div class="report-box">
+          <div class="report-header">
+            <span>Category-wise Offering Summary</span>
+            <button class="icon-btn" onclick="copyFinalReport()" title="Copy report">📋</button>
+          </div>
+          <div id="final-report" class="report-content"></div>
+        </div>
+      </section>
+
+      <!-- Charts -->
+      <section class="section">
+        <h2 class="section-title">Charts</h2>
+        <div class="charts-grid">
+          <div class="chart-box" id="barChartBox">
+            <div class="chart-title">Category-wise Bar Chart</div>
+            <canvas id="barChart"></canvas>
+            <div class="chart-empty-state hidden" id="barChartEmpty"></div>
+          </div>
+          <div class="chart-box" id="pieChartBox">
+            <div class="chart-title">Category Distribution</div>
+            <canvas id="pieChart"></canvas>
+            <div class="chart-empty-state hidden" id="pieChartEmpty"></div>
+          </div>
+          <div class="chart-box chart-wide" id="outsideChartBox">
+            <div class="chart-title">Outside Delhi — Top Locations</div>
+            <canvas id="outsideChart"></canvas>
+            <div class="chart-empty-state hidden" id="outsideChartEmpty"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Full Breakdown -->
+      <section class="section">
+        <h2 class="section-title">Full Breakdown</h2>
+        <div class="report-box">
+          <div class="report-header">
+            <span>Detailed Location Breakdown</span>
+            <button class="icon-btn" onclick="copyFullBreakdown()" title="Copy breakdown">📄</button>
+          </div>
+          <div id="full-breakdown" class="report-content"></div>
+        </div>
+      </section>
+
+      <!-- Admin Review -->
+      <section class="section" id="admin-section" style="display:none;">
+        <h2 class="section-title">⚠️ Admin Review</h2>
+        <div class="report-box warn-box">
+          <div class="report-header">
+            <span id="admin-header-text">Items auto-assigned — verify if needed</span>
+          </div>
+          <div id="admin-list" style="overflow-x:auto;padding:12px 14px;"></div>
+        </div>
+      </section>
+
+    </div><!-- /results -->
+
+    <!-- Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+  </main>
+
+  <footer class="footer">
+    Offering Collection Management System &bull; All data processed locally in your browser &bull; No server required
+  </footer>
+
+</div>
+<script src="script.js"></script>
+</body>
+</html>
